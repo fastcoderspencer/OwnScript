@@ -15,6 +15,47 @@ $releasesUrl = "https://api.github.com/repos/alist-org/alist/releases/latest"
 Set-Location -Path $targetPath
 Write-Host "当前工作目录已更改为：$targetPath"
 
+
+
+# 获取 GitHub 上最新版本的信息
+$latestRelease = Invoke-RestMethod -Uri $releasesUrl
+
+$latestVersion = $latestRelease.tag_name.Replace('v', '').Replace('V', '')
+$latestVersionUrl = $latestRelease.assets[0].browser_download_url
+
+# 获取本地 AList 的版本信息
+$commandOutput = Invoke-Expression ".\alist.exe version"
+if ($null -eq $commandOutput) {
+    Write-Host "Failed to get version information from alist.exe"
+    exit 1
+}
+
+$versionOutput = $commandOutput | Out-String
+if ($null -eq $versionOutput) {
+    Write-Host "Failed to convert command output to string"
+    exit 1
+}
+
+
+$localVersionLine = ($versionOutput -split "`n" | Select-String "Version:" -SimpleMatch)[-1].Line
+
+if ($null -eq $localVersionLine) {
+    Write-Host "Failed to find version line in command output"
+    exit 1
+}
+
+$localVersion = $localVersionLine.Split(":")[1].Trim()
+
+
+if ($latestVersion -le $localVersion) {
+    $logStr = "github版本为: $latestVersion，小于或等于本地版本： $localVersion，脚本退出，不更新。"
+    Write-Host $logStr
+    Add-Content -Path $updateLogPath -Value ("脚本执行时间：{0}，{1}" -f (Get-Date -Format g), $logStr)
+    exit 0
+}
+
+
+
 # 获取最新版本的alist信息
 $response = Invoke-WebRequest -Uri $releasesUrl | ConvertFrom-Json
 $latestAlistUrl = $response.assets | Where-Object{$_.name -eq "alist-windows-386.zip"} | Select-Object -ExpandProperty browser_download_url
